@@ -1,0 +1,45 @@
+name: Release
+
+# Se publica al subir una etiqueta vX.Y.Z (ver docs/RELEASING.md)
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write       # crear la release
+  id-token: write       # atestación de procedencia
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.1'
+      - name: La etiqueta debe coincidir con package.json
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          if [ "v$V" != "$GITHUB_REF_NAME" ]; then
+            echo "La etiqueta $GITHUB_REF_NAME no coincide con package.json (v$V)"; exit 1
+          fi
+      - run: npm test
+      - run: npm run build:exe
+      - name: Sumas de verificación
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem dist\Brisa-v*-win-x64.exe
+          $h = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
+          "$h  $($f.Name)" | Out-File dist\SHA256SUMS.txt -Encoding ascii
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/Brisa-v*-win-x64.exe
+      - name: Publicar la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Brisa-v*-win-x64.exe dist/SHA256SUMS.txt \
+            --title "Brisa $GITHUB_REF_NAME" --generate-notes --verify-tag

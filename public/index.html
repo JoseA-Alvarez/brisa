@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brisa</title>
+<style>
+:root{--bg:#eef3f6;--fg:#15222b;--card:#fff;--acc:#0b7fb5;--mut:#667985;--ok:#16915a;--bad:#c0392b;--warn:#b7791f;--line:#cfdbe2;--grid:#d9e4ea}
+@media(prefers-color-scheme:dark){:root{--bg:#0f171c;--fg:#e6eef2;--card:#18242b;--acc:#4cc2f0;--mut:#8da2ae;--ok:#3ddc97;--bad:#ff6b5b;--warn:#f2c14e;--line:#2c3d47;--grid:#23323b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+h1{font-size:22px;margin:0}h1 small{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
+h2{font-size:12px;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 1px 4px #0002}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:160px}
+button{border:0;border-radius:8px;padding:8px 12px;background:var(--acc);color:#fff;font:inherit;cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.danger{background:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=text],input[type=number]{font:inherit;padding:7px 8px;border-radius:8px;background:var(--bg);color:var(--fg);border:1px solid var(--line);min-width:0}
+label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
+.switch{display:inline-flex;flex-direction:row;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--fg)}
+.switch input{appearance:none;width:42px;height:24px;border-radius:12px;background:var(--line);position:relative;cursor:pointer;transition:.2s;flex:none}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.switch input:checked{background:var(--ok)}.switch input:checked::after{left:21px}
+.switch input:focus-visible,button:focus-visible,canvas:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+.badge.brisa{color:var(--ok);border-color:var(--ok)}.badge.failsafe,.badge.error{color:var(--bad);border-color:var(--bad)}.badge.pump{color:var(--warn);border-color:var(--warn)}
+.fans{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:12px}
+.fan{border:1px solid var(--line);border-radius:12px;padding:12px}
+.fan .top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px}
+.fan .badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.fan b{font-size:14px}.stat{display:flex;gap:14px;font-size:13px;color:var(--mut);flex-wrap:wrap}.stat span b{color:var(--fg);font-size:15px}
+.bar{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc);transition:width .4s}
+canvas.chart{width:100%;aspect-ratio:13/7;display:block;border-radius:10px;background:var(--card);border:1px solid var(--line);touch-action:none;cursor:crosshair;margin-top:10px}
+.fields{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.fields label.sens{flex:1 1 100%}
+.fields input{width:100%}.fields label:not(.sens){flex:1 1 70px}
+details{margin-top:8px;font-size:13px}summary{cursor:pointer;color:var(--mut)}
+table{border-collapse:collapse;font-size:13px}td,th{padding:3px 6px;text-align:left;color:var(--mut);font-weight:400}td input{width:70px}
+#dirty{position:sticky;bottom:10px;background:var(--warn);color:#111;border-radius:12px;padding:10px 14px;margin-bottom:14px;display:none;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 4px 14px #0004;z-index:5}
+#dirty.on{display:flex}#dirty button{background:#111;color:#fff}#dirty button.alt{background:transparent;color:#111;border-color:#1118}
+#msg{min-height:1.3em;font-size:13px}.err{color:var(--bad)}.good{color:var(--ok)}
+dialog{border:0;border-radius:14px;background:var(--card);color:var(--fg);padding:18px;max-width:340px;width:90%}dialog::backdrop{background:#0008}
+.hint{font-size:12px;color:var(--mut);margin:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Brisa <small id="backend"></small></h1>
+    <div class="row">
+      <span id="banner" class="badge"></span>
+      <label class="switch" id="hwWrap" style="display:none" title="Lee la placa base y la CPU y permite controlar sus ventiladores. Pide permisos de administrador. Actívalo solo cuando SignalRGB no esté controlando los mismos ventiladores."><input type="checkbox" id="hw" role="switch" aria-label="Acceso a placa base"><span id="hwTxt">Acceso a placa base</span></label>
+      <label class="switch"><input type="checkbox" id="global" role="switch" aria-label="Control de ventiladores"><span id="globalTxt">Control de ventiladores</span></label>
+    </div>
+  </header>
+  <div id="msg" role="status" aria-live="polite"></div>
+  <div id="notes" class="card" style="display:none;border-left:4px solid var(--warn)"></div>
+
+  <div class="card">
+    <h2>Perfiles</h2>
+    <div class="row">
+      <label class="grow">Perfil activo<select id="profile"></select></label>
+      <button class="alt" id="dup">Duplicar</button>
+      <button class="alt" id="ren">Renombrar</button>
+      <button class="danger" id="del">Borrar</button>
+      <button class="alt" id="exp">Exportar</button>
+      <button class="alt" id="imp">Importar</button>
+      <input type="file" id="file" accept="application/json" hidden>
+    </div>
+    <p class="hint" id="pinfo"></p>
+  </div>
+
+  <div class="card">
+    <h2>Ventiladores · una curva propia por cada uno</h2>
+    <p class="hint" style="margin:0 0 10px">Arrastra los puntos · clic en vacío: añadir · doble clic en un punto: eliminar · la velocidad nunca puede bajar al subir la temperatura. Cada ventilador tiene su sensor, su histéresis y sus límites.</p>
+    <div class="fans" id="fans"></div>
+  </div>
+
+  <div id="dirty" role="alert">
+    <span id="dirtyTxt">Cambios sin guardar</span>
+    <button id="save">Guardar</button><button id="saveAs">Guardar como…</button><button class="alt" id="discard">Descartar</button>
+  </div>
+</main>
+
+<dialog id="cdlg"><form method="dialog">
+  <p id="cdlgTxt" style="white-space:pre-line;margin:0 0 12px;font-size:14px"></p>
+  <div class="row" style="justify-content:flex-end"><button class="alt" value="no" formnovalidate>Cancelar</button><button id="cdlgOk" value="yes">Continuar</button></div>
+</form></dialog>
+<dialog id="dlg"><form method="dialog">
+  <label>Nombre<input type="text" id="dlgName" maxlength="40" autocomplete="off"></label>
+  <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="alt" value="cancel" formnovalidate>Cancelar</button><button id="dlgOk" value="ok">Aceptar</button></div>
+</form></dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e};
+const TMAX=100,W=520,H=280;
+let S=null, draft=null, draftBase=null, draftGen=0, dirty=false;
+const cards=new Map(); // id de ventilador -> referencias a su tarjeta
+
+function say(t,cls=''){const m=$('msg');m.textContent=t;m.className=cls;if(t)setTimeout(()=>{if(m.textContent===t)m.textContent=''},5000)}
+async function api(method,path,body){
+  const r=await fetch(path,{method,headers:{'X-Brisa':'1','Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+
+// ---------- Perfil de trabajo (borrador): una configuración propia por ventilador ----------
+const activeProfile=()=>S.profiles.find(p=>p.id===S.activeId);
+function expand(profile){
+  const fans=clone(profile.fans);
+  for(const f of S.fans)if(!fans[f.id])fans[f.id]=clone(profile.fans.default||Object.values(profile.fans)[0]);
+  return fans;
+}
+function syncDraft(force){
+  const p=activeProfile();if(!p)return;
+  const key=p.id+JSON.stringify(p.fans)+S.fans.map(f=>f.id).join();
+  if(!force&&(dirty||key===draftBase))return;
+  draft=expand(p);draftBase=key;dirty=false;draftGen++;
+}
+function markDirty(id){dirty=true;renderDirty();if(id&&cards.get(id)&&cards.get(id).cv)drawChart(id)}
+
+// ---------- Cabecera, perfiles ----------
+function renderTop(){
+  $('backend').textContent=(S.simulated?'⚠ DATOS SIMULADOS · ':'')+S.backend+(S.version?' · v'+S.version:'');
+  const notes=[...(S.simulated?['Los ventiladores y temperaturas mostrados son inventados por el simulador; no corresponden a tu PC.']:[]),...(S.notes||[])];
+  const nb=$('notes');nb.style.display=notes.length?'':'none';
+  if(nb.dataset.k!==notes.join('|')){nb.dataset.k=notes.join('|');nb.innerHTML='';notes.forEach(t=>{const p=document.createElement('p');p.style.margin='4px 0';p.style.fontSize='13px';p.textContent=t;nb.append(p)})}
+  const hw=S.hardware;$('hwWrap').style.display=hw?'':'none';
+  if(hw){
+    $('hw').checked=hw.state==='on'||hw.state==='starting';$('hw').disabled=!hw.available||hw.state==='starting';
+    $('hwTxt').textContent=!hw.available?'Acceso a placa base (biblioteca no instalada)':hw.state==='starting'?'Esperando autorización…':hw.state==='on'?'Acceso a placa base activo':'Acceso a placa base';
+  }
+  $('global').checked=S.globalEnabled;
+  $('globalTxt').textContent=S.globalEnabled?'Control activado':'Control desactivado (BIOS)';
+  const b=$('banner');b.textContent=S.error?'Error: '+S.error:(S.globalEnabled?'Brisa controla los ventiladores':'La BIOS controla los ventiladores');
+  b.className='badge '+(S.error?'error':S.globalEnabled?'brisa':'');
+  const sel2=$('profile');
+  if(sel2.dataset.k!==S.profiles.map(p=>p.id+p.name).join()+S.activeId){
+    sel2.innerHTML='';S.profiles.forEach(p=>sel2.append(new Option((p.builtin?'● ':'')+p.name,p.id)));
+    sel2.dataset.k=S.profiles.map(p=>p.id+p.name).join()+S.activeId;
+  }
+  sel2.value=S.activeId;
+  const p=activeProfile();
+  $('pinfo').textContent=p.builtin?'Perfil integrado (●): no se puede modificar ni borrar. Edita las curvas y usa "Guardar como…" para crear tu versión personalizada.':'Perfil personalizado.';
+  $('del').disabled=p.builtin;$('ren').disabled=p.builtin;
+}
+function renderDirty(){
+  $('dirty').classList.toggle('on',dirty);
+  const p=activeProfile();
+  $('save').style.display=p&&!p.builtin?'':'none';
+  $('dirtyTxt').textContent=p&&p.builtin?'Cambios sin guardar · los perfiles integrados no se modifican':'Cambios sin guardar';
+}
+
+// ---------- Tarjetas de ventilador (cada una con su propia gráfica) ----------
+const modeTxt={brisa:'Brisa',bios:'BIOS',failsafe:'Seguridad',error:'Error'};
+
+function buildFans(){
+  const box=$('fans');box.innerHTML='';cards.clear();
+  if(!S.fans.length){box.append(el('p','hint','No se detectó ningún ventilador.'));return}
+  for(const f of S.fans)box.append(buildCard(f));
+  for(const [id,r] of cards)if(r.cv)drawChart(id);
+}
+
+function buildCard(f){
+  const cfg=draft&&draft[f.id],r={};cards.set(f.id,r);
+  const d=el('div','fan');
+  const top=el('div','top');
+  const nm=el('b','',f.name);nm.title=f.origName!==f.name?'Original: '+f.origName:f.origName;
+  const ed=el('button','alt','✎');ed.title='Renombrar';ed.setAttribute('aria-label','Renombrar '+f.name);ed.style.cssText='padding:1px 7px;margin-left:6px;font-size:12px';
+  ed.onclick=async()=>{const n=await dialogName(f.name);if(n===null)return;try{S=await api('POST','/api/fans/meta',{id:f.id,name:n===f.origName?'':n});renderTop();buildFans()}catch(er){say(er.message,'err')}};
+  nm.append(ed);
+  const bs=el('div','badges');
+  if(f.pump)bs.append(Object.assign(el('span','badge pump','Bomba · siempre 100 %'),{title:'Bomba de refrigeración líquida: va siempre al 100 %, sin curva'}));
+  r.badge=el('span','badge');bs.append(r.badge);
+  top.append(nm,bs);d.append(top);
+
+  const st=el('div','stat');
+  const sp=(l,key)=>{const s=el('span');s.append(l+' ');r[key]=el('b','','–');s.append(r[key]);st.append(s)};
+  sp('RPM','rpm');sp('Vel.','duty');sp('Temp.','temp');d.append(st);
+  r.sens=el('div','hint');d.append(r.sens);
+  const bar=el('div','bar');r.bar=el('i');bar.append(r.bar);d.append(bar);
+  r.sig=el('div','hint','Sin señal de RPM: no hay ventilador conectado o no informa de su velocidad.');r.sig.style.display='none';d.append(r.sig);
+  r.err=el('div','hint err');r.err.style.display='none';d.append(r.err);
+
+  if(f.pump){
+    const pc=el('canvas','chart');pc.width=W;pc.height=H;pc.style.cursor='default';pc.setAttribute('role','img');pc.setAttribute('aria-label','Curva fija de '+f.name+': siempre al 100 %');
+    r.cv=pc;d.append(pc,el('div','hint','Bomba de refrigeración: Brisa la mantiene siempre al 100 %. La curva es fija y no se puede modificar ni reducir.'));return d
+  }
+  if(!f.canControl||!cfg){d.append(el('div','hint','Solo lectura: Brisa no puede controlar este ventilador.'));r.cv=null;return d}
+
+  const on=el('label','switch');on.style.marginTop='10px';
+  const cb=el('input');cb.type='checkbox';cb.setAttribute('role','switch');cb.checked=!!cfg.enabled;
+  cb.onchange=()=>{cfg.enabled=cb.checked;markDirty(f.id)};
+  on.append(cb,document.createTextNode('Controlar este ventilador'));d.append(on);
+
+  const cv=el('canvas','chart');cv.width=W;cv.height=H;cv.tabIndex=0;
+  cv.setAttribute('aria-label','Curva de '+f.name+'. Arrastra los puntos; clic en vacío añade; doble clic en un punto lo elimina');
+  r.cv=cv;attachChart(f.id,cv);d.append(cv);
+
+  const fields=el('div','fields');
+  const lsrc=el('label','sens');lsrc.append('Sensor de temperatura');
+  const src=el('select');src.append(new Option('Automático','auto'));
+  S.sensors.forEach(s=>src.append(new Option(s.name,s.id)));
+  if(!S.sensors.some(s=>s.id===cfg.source)&&cfg.source!=='auto')src.append(new Option(cfg.source+' (no disponible)',cfg.source));
+  src.value=cfg.source;src.onchange=()=>{cfg.source=src.value;markDirty(f.id)};
+  lsrc.append(src);fields.append(lsrc);
+  for(const [lab,k,max,tip] of [['Histéresis (°C)','hysteresis',15,'Grados que debe enfriarse antes de bajar la velocidad'],['Retardo (s)','delay',120,'Segundos que debe mantenerse un cambio de temperatura antes de reaccionar; evita los picos cortos de la CPU. 0 = reacciona al instante'],['Mín. (%)','minDuty',100],['Máx. (%)','maxDuty',100]]){
+    const l=el('label');l.append(lab);if(tip)l.title=tip;
+    const i=el('input');i.type='number';i.min=0;i.max=max;i.step=1;i.value=cfg[k]??0;
+    i.onchange=()=>{const v=parseFloat(i.value);if(Number.isFinite(v)){cfg[k]=v;markDirty(f.id)}};
+    l.append(i);fields.append(l);
+  }
+  d.append(fields);
+  const lp=el('label');lp.style.marginTop='8px';lp.append('Usar un perfil en este ventilador (sin tocar la curva a mano)');
+  const ps=el('select');ps.append(new Option('Elegir perfil…',''));S.profiles.forEach(p=>ps.append(new Option((p.builtin?'● ':'')+p.name,p.id)));
+  ps.onchange=()=>{
+    const p=S.profiles.find(x=>x.id===ps.value);if(!p)return;
+    const base=p.fans[f.id]||p.fans.default||Object.values(p.fans)[0];
+    draft[f.id]={...clone(base),delay:base.delay??0,source:cfg.source,enabled:cfg.enabled};
+    markDirty();buildFans();say('Curva de "'+p.name+'" aplicada solo a '+f.name+' (guarda para conservarla)','good');
+  };
+  lp.append(ps);d.append(lp);
+
+  const det=el('details');r.sum=el('summary');det.append(r.sum);
+  const tb=el('table');tb.innerHTML='<thead><tr><th>#</th><th>°C</th><th>%</th></tr></thead><tbody></tbody>';det.append(tb);r.tb=tb.tBodies[0];d.append(det);
+  renderPts(f.id);
+
+  const cp=el('button','alt','Copiar esta curva a los demás');cp.style.cssText='margin-top:10px;font-size:13px';
+  cp.onclick=async()=>{
+    if(!(await ask('Copiar la curva, histéresis y límites de "'+f.name+'" a todos los demás ventiladores controlables?\nCada uno conserva su sensor y su estado de control. Podrás seguir editándolos por separado.')))return;
+    for(const o of S.fans)if(o.id!==f.id&&o.canControl&&draft[o.id])draft[o.id]={...clone(cfg),source:draft[o.id].source,enabled:draft[o.id].enabled};
+    markDirty();buildFans();say('Curva copiada; cada ventilador sigue siendo independiente','good');
+  };
+  d.append(cp);
+  return d;
+}
+
+function renderPts(id){
+  const r=cards.get(id),cfg=draft&&draft[id];if(!r||!r.tb||!cfg)return;
+  r.sum.textContent='Puntos de la curva ('+cfg.points.length+')';
+  r.tb.innerHTML='';
+  cfg.points.forEach((p,i)=>{
+    const tr=r.tb.insertRow();tr.insertCell().textContent=i+1;
+    for(const k of ['t','d']){
+      const inp=el('input');inp.type='number';inp.step='1';inp.min=0;inp.max=k==='t'?110:100;inp.value=Math.round(p[k]*10)/10;
+      inp.setAttribute('aria-label',(k==='t'?'Temperatura':'Velocidad')+' del punto '+(i+1));
+      inp.onchange=()=>{const v=parseFloat(inp.value);if(Number.isFinite(v)){p[k]=v;markDirty(id);renderPts(id);drawChart(id)}};
+      tr.insertCell().append(inp);
+    }
+  });
+}
+
+// Actualización en vivo sin reconstruir las tarjetas (no interrumpe la edición)
+function updateLive(){
+  for(const f of S.fans){
+    const r=cards.get(f.id);if(!r)continue;
+    r.rpm.textContent=Number.isFinite(f.rpm)?Math.round(f.rpm):'–';
+    r.duty.textContent=Number.isFinite(f.duty)?Math.round(f.duty)+' %':'–';
+    r.temp.textContent=Number.isFinite(f.temp)?f.temp.toFixed(1)+' °C':'–';
+    const sens=S.sensors.find(x=>x.id===f.sensor);r.sens.textContent=sens?'Sensor: '+sens.name:'';r.sens.style.display=sens?'':'none';
+    r.bar.style.width=(Number.isFinite(f.duty)?clamp(f.duty,0,100):0)+'%';
+    r.badge.className='badge '+(f.mode||'');r.badge.textContent=f.canControl?(modeTxt[f.mode]||'BIOS'):'Solo lectura';
+    r.sig.style.display=f.canControl&&f.rpm===0?'':'none';
+    r.err.style.display=f.error?'':'none';r.err.textContent=f.error||'';
+    if(r.cv)drawChart(f.id);
+  }
+}
+
+// ---------- Gráficas: una por ventilador ----------
+const PAD={l:42,r:12,t:10,b:26};
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const X=t=>PAD.l+t/TMAX*(W-PAD.l-PAD.r), Y=d=>H-PAD.b-d/100*(H-PAD.t-PAD.b);
+const invT=x=>(x-PAD.l)/(W-PAD.l-PAD.r)*TMAX, invD=y=>(H-PAD.b-y)/(H-PAD.t-PAD.b)*100;
+const drag={}; // id -> índice del punto arrastrado
+const PUMP_CFG={points:[{t:0,d:100},{t:100,d:100}],minDuty:100,maxDuty:100};
+function drawChart(id){
+  const r=cards.get(id),pf=S.fans.find(x=>x.id===id),cfg=pf&&pf.pump?PUMP_CFG:draft&&draft[id];if(!r||!r.cv||!cfg)return;
+  const cx=r.cv.getContext('2d'),f=S.fans.find(x=>x.id===id),di=drag[id]??-1;
+  cx.clearRect(0,0,W,H);cx.font='12px system-ui';cx.lineWidth=1;
+  for(let t=0;t<=TMAX;t+=10){cx.strokeStyle=cssv('--grid');cx.beginPath();cx.moveTo(X(t),Y(0));cx.lineTo(X(t),Y(100));cx.stroke();cx.fillStyle=cssv('--mut');cx.textAlign='center';cx.fillText(t+'°',X(t),H-8)}
+  for(let d=0;d<=100;d+=20){cx.strokeStyle=cssv('--grid');cx.beginPath();cx.moveTo(X(0),Y(d));cx.lineTo(X(TMAX),Y(d));cx.stroke();cx.fillStyle=cssv('--mut');cx.textAlign='right';cx.fillText(d+'%',PAD.l-6,Y(d)+4)}
+  cx.strokeStyle=cssv('--bad');cx.setLineDash([5,4]);cx.beginPath();cx.moveTo(X(S.critical),Y(0));cx.lineTo(X(S.critical),Y(100));cx.stroke();cx.setLineDash([]);
+  cx.fillStyle=cssv('--bad');cx.textAlign='left';cx.fillText('crítica',X(S.critical)+4,Y(100)+12);
+  cx.fillStyle=cssv('--acc');cx.globalAlpha=.07;cx.fillRect(X(0),Y(cfg.maxDuty),X(TMAX)-X(0),Y(cfg.minDuty)-Y(cfg.maxDuty));cx.globalAlpha=1;
+    const pts=cfg.points;
+  cx.strokeStyle=cssv('--acc');cx.lineWidth=3;cx.beginPath();
+  cx.moveTo(X(0),Y(pts[0].d));pts.forEach(p=>cx.lineTo(X(p.t),Y(p.d)));cx.lineTo(X(TMAX),Y(pts[pts.length-1].d));cx.stroke();
+  if(f&&f.pump){cx.fillStyle=cssv('--warn');cx.textAlign='center';cx.fillText('Fija al 100 % · no editable',X(50),Y(100)+22)}
+  else pts.forEach((p,i)=>{cx.fillStyle=i===di?cssv('--ok'):cssv('--acc');cx.beginPath();cx.arc(X(p.t),Y(p.d),6,0,6.283);cx.fill();cx.strokeStyle=cssv('--card');cx.lineWidth=2;cx.stroke()});
+  if(f&&Number.isFinite(f.temp)){
+    cx.strokeStyle=cssv('--ok');cx.lineWidth=1.5;cx.beginPath();cx.moveTo(X(f.temp),Y(0));cx.lineTo(X(f.temp),Y(100));cx.stroke();
+    if(Number.isFinite(f.duty)){cx.fillStyle=cssv('--ok');cx.beginPath();cx.arc(X(f.temp),Y(f.duty),5,0,6.283);cx.fill()}
+  }
+}
+function attachChart(id,cv){
+  const cpos=e=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)*W/b.width,(e.clientY-b.top)*H/b.height]};
+  const hit=(x,y)=>draft[id].points.findIndex(p=>Math.hypot(X(p.t)-x,Y(p.d)-y)<=13);
+  cv.onpointerdown=e=>{
+    if(!draft||!draft[id])return;
+    const [x,y]=cpos(e),i=hit(x,y);
+    if(i>=0){drag[id]=i;cv.setPointerCapture(e.pointerId);return}
+    const t=clamp(Math.round(invT(x)),0,TMAX),d=clamp(Math.round(invD(y)),0,100),pts=draft[id].points;
+    if(pts.length>=12||pts.some(p=>p.t===t))return say('No se puede añadir ahí (máximo 12 puntos, temperaturas distintas)','err');
+    const k=pts.findIndex(p=>p.t>t),idx=k<0?pts.length:k;
+    const lo=idx>0?pts[idx-1].d:0,hi=idx<pts.length?pts[idx].d:100;
+    pts.splice(idx,0,{t,d:clamp(d,lo,hi)});markDirty(id);renderPts(id);
+  };
+  cv.onpointermove=e=>{
+    const di=drag[id];if(di===undefined)return;
+    const [x,y]=cpos(e),pts=draft[id].points,p=pts[di];
+    const tMin=di>0?pts[di-1].t+1:0,tMax=di<pts.length-1?pts[di+1].t-1:110;
+    const dMin=di>0?pts[di-1].d:0,dMax=di<pts.length-1?pts[di+1].d:100;
+    p.t=clamp(Math.round(invT(x)),tMin,tMax);p.d=clamp(Math.round(invD(y)),dMin,dMax);
+    markDirty(id);
+  };
+  cv.onpointerup=cv.onpointercancel=()=>{if(drag[id]!==undefined){delete drag[id];renderPts(id);drawChart(id)}};
+  cv.ondblclick=e=>{
+    const [x,y]=cpos(e),i=hit(x,y),pts=draft[id].points;
+    if(i>=0){if(pts.length<=2)return say('La curva necesita al menos 2 puntos','err');pts.splice(i,1);markDirty(id);renderPts(id)}
+  };
+  // teclado: flechas mueven el primer punto (con Mayús, el último)
+  cv.onkeydown=e=>{
+    const pts=draft&&draft[id]&&draft[id].points;if(!pts)return;
+    const i=e.shiftKey?pts.length-1:0;
+    const dx={ArrowLeft:-1,ArrowRight:1}[e.key]||0,dy={ArrowDown:-1,ArrowUp:1}[e.key]||0;if(!dx&&!dy)return;
+    e.preventDefault();const p=pts[i];
+    const tMin=i>0?pts[i-1].t+1:0,tMax=i<pts.length-1?pts[i+1].t-1:110,dMin=i>0?pts[i-1].d:0,dMax=i<pts.length-1?pts[i+1].d:100;
+    p.t=clamp(p.t+dx,tMin,tMax);p.d=clamp(p.d+dy,dMin,dMax);markDirty(id);renderPts(id);
+  };
+}
+
+// ---------- Guardado ----------
+function ask(text){
+  return new Promise(res=>{const d=$('cdlg');$('cdlgTxt').textContent=text;d.onclose=()=>res(d.returnValue==='yes');d.showModal();$('cdlgOk').focus()});
+}
+function dialogName(def){
+  return new Promise(res=>{
+    const d=$('dlg');$('dlgName').value=def;
+    d.onclose=()=>res(d.returnValue==='ok'?$('dlgName').value.trim():null);
+    d.showModal();$('dlgName').select();
+  });
+}
+$('save').onclick=async()=>{
+  try{await api('PUT','/api/profiles/'+S.activeId,{fans:draft});dirty=false;draftBase=null;await reload();say('Perfil guardado','good')}catch(e){say(e.message,'err')}
+};
+$('saveAs').onclick=async()=>{
+  const n=await dialogName(activeProfile().builtin?activeProfile().name+' (copia)':activeProfile().name+' 2');if(!n)return;
+  try{const r=await api('POST','/api/profiles',{name:n,fans:draft});await api('POST','/api/active',{id:r.profile.id});dirty=false;draftBase=null;await reload();say('Perfil "'+n+'" creado y activado','good')}catch(e){say(e.message,'err')}
+};
+$('discard').onclick=()=>{syncDraft(true);renderDirty();buildFans();builtKey=fansKey()};
+$('profile').onchange=async e=>{
+  if(dirty&&!(await ask('Hay cambios sin guardar. ¿Descartarlos?'))){e.target.value=S.activeId;return}
+  try{dirty=false;await api('POST','/api/active',{id:e.target.value});draftBase=null;await refresh()}catch(er){say(er.message,'err')}
+};
+$('dup').onclick=async()=>{
+  const n=await dialogName(activeProfile().name+' (copia)');if(!n)return;
+  try{const r=await api('POST','/api/profiles',{name:n,fans:dirty?draft:expand(activeProfile())});await api('POST','/api/active',{id:r.profile.id});dirty=false;draftBase=null;await reload();say('Perfil duplicado','good')}catch(e){say(e.message,'err')}
+};
+$('ren').onclick=async()=>{
+  const n=await dialogName(activeProfile().name);if(!n)return;
+  try{await api('PUT','/api/profiles/'+S.activeId,{name:n});await reload();say('Perfil renombrado','good')}catch(e){say(e.message,'err')}
+};
+$('del').onclick=async()=>{
+  const p=activeProfile();if(p.builtin||!(await ask('¿Borrar el perfil "'+p.name+'"?')))return;
+  try{await api('DELETE','/api/profiles/'+p.id);dirty=false;draftBase=null;await reload();say('Perfil borrado','good')}catch(e){say(e.message,'err')}
+};
+$('exp').onclick=()=>{location.href='/api/export'};
+$('imp').onclick=()=>$('file').click();
+$('file').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{if(f.size>1e6)throw new Error('archivo demasiado grande');const r=await api('POST','/api/import',JSON.parse(await f.text()));await reload();say(r.imported+' perfil(es) importado(s)','good')}catch(er){say('Importación fallida: '+er.message,'err')}
+};
+$('hw').onchange=async e=>{
+  const on=e.target.checked;
+  if(on&&!(await ask('Brisa lanzará un asistente con permisos de administrador para leer la placa base y controlar sus ventiladores.\n\nSi SignalRGB está controlando los mismos ventiladores, ciérralo o desactiva su control de ventiladores para evitar conflictos.\n\n¿Continuar? Windows pedirá tu autorización.'))){e.target.checked=false;say('Acceso a placa base cancelado');return}
+  try{S=await api('POST','/api/hardware',{enabled:on});renderTop();say(on?'Esperando la autorización de Windows…':'Acceso a placa base desactivado; ventiladores devueltos a la BIOS','good')}
+  catch(er){e.target.checked=!on;say(er.message,'err')}
+};
+$('global').onchange=async e=>{
+  try{S=await api('POST','/api/enabled',{enabled:e.target.checked});renderTop();updateLive();say(S.globalEnabled?'Brisa tomó el control de los ventiladores':'Control devuelto a la BIOS','good')}
+  catch(er){e.target.checked=!e.target.checked;say(er.message,'err')}
+};
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+
+// Las tarjetas solo se reconstruyen si cambia la estructura (perfil, ventiladores, nombres, sensores);
+// el resto (RPM, temperaturas, gráficas) se actualiza cada segundo sin tocar los campos que se están editando.
+let builtKey='';
+const fansKey=()=>draftGen+'|'+S.activeId+'|'+S.pumpMin+'|'+S.fans.map(f=>[f.id,f.name,f.pump,f.canControl].join(':')).join()+'|'+S.sensors.map(s=>s.id+s.name).join();
+async function refresh(){
+  S=await api('GET','/api/state');
+  syncDraft(false);
+  renderTop();renderDirty();
+  const k=fansKey();
+  if(k!==builtKey){builtKey=k;buildFans()}
+  updateLive();
+}
+async function reload(){builtKey='';await refresh()}
+async function loop(){
+  try{await refresh()}catch(e){$('banner').textContent='Sin conexión con Brisa';$('banner').className='badge error'}
+  setTimeout(loop,1000);
+}
+loop();
+</script>
+</body>
+</html>

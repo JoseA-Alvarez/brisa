@@ -1,0 +1,14 @@
+{
+  "name": "brisa",
+  "version": "0.1.0",
+  "description": "Control local de ventiladores con curvas por ventilador y perfiles, para Windows.",
+  "license": "MIT",
+  "private": true,
+  "main": "server.js",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/brisa.test.js",
+    "build:exe": "node build-exe.js"
+  }
+}

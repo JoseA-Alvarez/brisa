@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.1'
+      - name: Tests
+        run: npm test
+      - name: Compilar el .exe
+        run: npm run build:exe
+      - name: Prueba de humo del .exe (modo simulado)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\Brisa.exe -ArgumentList '--backend','sim','--port','8799','--data',"$env:RUNNER_TEMP\brisa-ci" -PassThru
+          try {
+            $ok = $false
+            foreach ($i in 1..15) {
+              Start-Sleep 1
+              try { $s = Invoke-RestMethod http://localhost:8799/api/state; if ($s.simulated) { $ok = $true; break } } catch {}
+            }
+            if (-not $ok) { throw 'Brisa.exe no respondió' }
+            Write-Host "OK: versión $($s.version)"
+          } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brisa-exe
+          path: dist/Brisa-v*-win-x64.exe
+          retention-days: 14
