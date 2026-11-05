@@ -3,6 +3,7 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); versiones según [SemVer](https://semver.org/lang/es/).
 
 ## [Sin publicar]
+- Interruptor "Iniciar con Windows" (entrada `Run` del usuario, arranca sin abrir el navegador).
 
 ## [0.1.0]
 - Primera versión: detección real de ventiladores (placa base vía asistente elevado, GPU NVIDIA solo lectura).

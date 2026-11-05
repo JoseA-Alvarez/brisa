@@ -22,6 +22,7 @@ Sin la biblioteca solo se ve la GPU NVIDIA, en modo solo lectura.
 - **Detección real**: solo se muestran ventiladores y sensores que existen en tu PC. El modo simulado (`--backend sim`) queda marcado como "DATOS SIMULADOS".
 - **Bomba**: el Fan #7 del chip Nuvoton (la bomba de refrigeración líquida en la placa de referencia) va siempre al 100 %, sin curva. Si tu bomba está en otro canal, ver `PUMP_IDS` en `profiles.js`.
 - **Nombres propios** para cada ventilador, que se conservan.
+- **Iniciar con Windows**: interruptor en la cabecera (solo en `Brisa.exe`). Añade una entrada en `HKCU...Run` que arranca Brisa al iniciar sesión **sin abrir el navegador** (`--no-open`); la interfaz sigue en `http://localhost:8760`. Si el acceso a placa base está recordado, Windows pedirá permiso de administrador en cada inicio. Si mueves el `.exe`, vuelve a activar el interruptor.
 - **Control a demanda**: el interruptor global arranca apagado la primera vez; al apagarlo o cerrar Brisa, todo vuelve a la BIOS.
 
 ## Seguridad
@@ -43,7 +44,7 @@ npm test                       # comprobaciones automáticas
 npm run build:exe              # genera dist/Brisa.exe y dist/Brisa-vX.Y.Z-win-x64.exe
 ```
 
-Opciones: `--port`, `--data <carpeta>` (por defecto `%APPDATA%\Brisa`), `--backend sim|native|lhm|auto`, `--lhm host:puerto`, `--open`, `--version`.
+Opciones: `--port`, `--data <carpeta>` (por defecto `%APPDATA%\Brisa`), `--backend sim|native|lhm|auto`, `--lhm host:puerto`, `--open`, `--no-open`, `--version`.
 
 Estructura:
 

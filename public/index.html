@@ -54,6 +54,7 @@ dialog{border:0;border-radius:14px;background:var(--card);color:var(--fg);paddin
     <div class="row">
       <span id="banner" class="badge"></span>
       <label class="switch" id="hwWrap" style="display:none" title="Lee la placa base y la CPU y permite controlar sus ventiladores. Pide permisos de administrador. Actívalo solo cuando SignalRGB no esté controlando los mismos ventiladores."><input type="checkbox" id="hw" role="switch" aria-label="Acceso a placa base"><span id="hwTxt">Acceso a placa base</span></label>
+      <label class="switch" id="autoWrap" style="display:none" title="Abre Brisa al iniciar sesión en Windows, sin abrir el navegador. Si el acceso a placa base está recordado, Windows pedirá permiso de administrador en cada inicio."><input type="checkbox" id="auto" role="switch" aria-label="Iniciar con Windows"><span>Iniciar con Windows</span></label>
       <label class="switch"><input type="checkbox" id="global" role="switch" aria-label="Control de ventiladores"><span id="globalTxt">Control de ventiladores</span></label>
     </div>
   </header>
@@ -138,6 +139,7 @@ function renderTop(){
     $('hw').checked=hw.state==='on'||hw.state==='starting';$('hw').disabled=!hw.available||hw.state==='starting';
     $('hwTxt').textContent=!hw.available?'Acceso a placa base (biblioteca no instalada)':hw.state==='starting'?'Esperando autorización…':hw.state==='on'?'Acceso a placa base activo':'Acceso a placa base';
   }
+  const au=S.autostart;$('autoWrap').style.display=au&&au.available?'':'none';if(au)$('auto').checked=au.enabled;
   $('global').checked=S.globalEnabled;
   $('globalTxt').textContent=S.globalEnabled?'Control activado':'Control desactivado (BIOS)';
   const b=$('banner');b.textContent=S.error?'Error: '+S.error:(S.globalEnabled?'Brisa controla los ventiladores':'La BIOS controla los ventiladores');
@@ -382,6 +384,11 @@ $('hw').onchange=async e=>{
   const on=e.target.checked;
   if(on&&!(await ask('Brisa lanzará un asistente con permisos de administrador para leer la placa base y controlar sus ventiladores.\n\nSi SignalRGB está controlando los mismos ventiladores, ciérralo o desactiva su control de ventiladores para evitar conflictos.\n\n¿Continuar? Windows pedirá tu autorización.'))){e.target.checked=false;say('Acceso a placa base cancelado');return}
   try{S=await api('POST','/api/hardware',{enabled:on});renderTop();say(on?'Esperando la autorización de Windows…':'Acceso a placa base desactivado; ventiladores devueltos a la BIOS','good')}
+  catch(er){e.target.checked=!on;say(er.message,'err')}
+};
+$('auto').onchange=async e=>{
+  const on=e.target.checked;
+  try{S=await api('POST','/api/autostart',{enabled:on});renderTop();say(on?'Brisa se iniciará con Windows':'Brisa ya no se inicia con Windows','good')}
   catch(er){e.target.checked=!on;say(er.message,'err')}
 };
 $('global').onchange=async e=>{

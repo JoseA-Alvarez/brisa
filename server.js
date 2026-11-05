@@ -5,13 +5,26 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const { ProfileStore, BUILTIN } = require('./profiles');
 const { Controller } = require('./controller');
 const { SimBackend } = require('./backends/sim');
 const { LhmBackend } = require('./backends/lhm');
 const { NativeBackend } = require('./backends/native');
 const { AutoBackend } = require('./backends/auto');
+
+// Inicio con Windows: valor en HKCU...Run (sin administrador). Solo tiene sentido en el .exe, no con "node server.js".
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', RUN_NAME = 'Brisa';
+const reg = args => new Promise((resolve, reject) => execFile('reg', args, { windowsHide: true }, (e, out) => (e ? reject(e) : resolve(out))));
+const autostartImpl = {
+  available: () => process.platform === 'win32' && !!sea,
+  command: () => `"${process.execPath}" --no-open`, // sin abrir el navegador al arrancar el PC
+  async enabled() { try { return (await reg(['query', RUN_KEY, '/v', RUN_NAME])).includes(this.command()); } catch { return false; } },
+  async set(on) {
+    if (on) await reg(['add', RUN_KEY, '/v', RUN_NAME, '/t', 'REG_SZ', '/d', this.command(), '/f']);
+    else await reg(['delete', RUN_KEY, '/v', RUN_NAME, '/f']).catch(() => {}); // si no existía, ya está
+  },
+};
 
 function parseArgs(argv) {
   if (argv.includes('--version')) { console.log(VERSION); process.exit(0); }
@@ -23,6 +36,7 @@ function parseArgs(argv) {
     else if (a === '--lhm') o.lhm = argv[++i];
     else if (a === '--data') o.data = argv[++i];
     else if (a === '--open') o.open = true;
+    else if (a === '--no-open') o.noOpen = true;
     else if (a === '--sim-speed') o.simSpeed = +argv[++i];
   }
   if (!o.data) o.data = process.platform === 'win32' ? path.join(process.env.APPDATA || os.homedir(), 'Brisa') : path.join(os.homedir(), '.brisa');
@@ -48,6 +62,10 @@ function createApp(o, backendOverride) {
     else if (o.backend === 'sim') { backend = new SimBackend(); backend.start(o.tickMs, o.simSpeed); }
     else backend = new AutoBackend({ lhm: lhmOpts }); // 'auto': solo hardware real
   }
+  const auto = o.autostart || autostartImpl; // o.autostart: sustituible en pruebas
+  let autoState = { available: auto.available(), enabled: false };
+  const refreshAuto = async () => { if (autoState.available) autoState.enabled = await auto.enabled(); };
+  refreshAuto();
   const store = new ProfileStore(o.data);
   const ctl = new Controller(backend, store, o.controller);
   let loop = null, lastErr = null;
@@ -65,7 +83,7 @@ function createApp(o, backendOverride) {
   const state = () => {
     const snap = ctl.snapshot();
     return {
-      version: VERSION, backend: backend.name, hardware: typeof backend.hardware === 'function' ? backend.hardware() : null, simulated: backend instanceof SimBackend, notes: snap.notes || [], error: lastErr,
+      version: VERSION, autostart: autoState, backend: backend.name, hardware: typeof backend.hardware === 'function' ? backend.hardware() : null, simulated: backend instanceof SimBackend, notes: snap.notes || [], error: lastErr,
       globalEnabled: store.globalEnabled, activeId: store.activeId,
       profiles: store.list(), critical: ctl.o.critical,
       sensors: snap.sensors, pumpMin: ctl.o.pumpMin,
@@ -94,6 +112,11 @@ function createApp(o, backendOverride) {
         return send(res, 200, state());
       }
       if (req.method === 'POST' && p === '/api/fans/meta') { store.setFanMeta(String(body.id), { name: body.name, pump: body.pump }); await runTick(); return send(res, 200, state()); }
+      if (req.method === 'POST' && p === '/api/autostart') {
+        if (!autoState.available) return send(res, 400, { error: 'el inicio con Windows solo está disponible en Brisa.exe' });
+        await auto.set(body.enabled === true); await refreshAuto();
+        return send(res, 200, state());
+      }
       if (req.method === 'POST' && p === '/api/hardware') {
         if (typeof backend.setHardware !== 'function') return send(res, 400, { error: 'este modo no admite acceso a placa base' });
         store.setHardwarePref(body.enabled === true);
@@ -156,7 +179,7 @@ module.exports = { createApp, parseArgs };
 if (require.main === module) {
   const o = parseArgs(process.argv.slice(2));
   o.tickMs = o.tickMs || 1000;
-  if (sea) o.open = true; // el .exe abre el navegador al arrancar
+  if (sea) o.open = !o.noOpen; // el .exe abre el navegador al arrancar, salvo con --no-open (inicio con Windows)
   const app = createApp(o);
   app.startLoop();
   if (app.store.hwEnabled && typeof app.backend.setHardware === 'function') Promise.resolve(app.backend.setHardware(true)).catch(() => {}); // recordado: Windows pedirá permiso

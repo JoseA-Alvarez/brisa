@@ -130,6 +130,25 @@ const P = (...a) => a.map(([t, d]) => ({ t, d }));
   await app.shutdown();
   ok(Object.values(app.backend.fans).every(f => !f.controlled), 'al cerrar se devuelve el control a la BIOS');
 
+  // inicio con Windows (con un registro falso)
+  {
+    let on = false;
+    const fa = { available: () => true, enabled: async () => on, set: async v => { on = v; } };
+    const ap = createApp({ data: tmp(), tickMs: 20, backend: 'sim', autostart: fa });
+    await new Promise(r => ap.server.listen(0, '127.0.0.1', r));
+    const c2 = (m, p, b) => new Promise((res, rej) => { const d = b ? JSON.stringify(b) : null; const q = http.request({ host: '127.0.0.1', port: ap.server.address().port, method: m, path: p, headers: { 'X-Brisa': '1', ...(d ? { 'Content-Type': 'application/json' } : {}) } }, r => { let s = ''; r.on('data', x => s += x); r.on('end', () => res({ code: r.statusCode, json: JSON.parse(s) })); }); q.on('error', rej); if (d) q.write(d); q.end(); });
+    await new Promise(r => setTimeout(r, 30));
+    ok((await c2('GET', '/api/state')).json.autostart.enabled === false, 'inicio con Windows: apagado por defecto');
+    ok((await c2('POST', '/api/autostart', { enabled: true })).json.autostart.enabled === true && on, 'inicio con Windows: se activa');
+    ok((await c2('POST', '/api/autostart', { enabled: false })).json.autostart.enabled === false && !on, 'inicio con Windows: se desactiva');
+    await ap.shutdown();
+    const an = createApp({ data: tmp(), tickMs: 20, backend: 'sim', autostart: { available: () => false } });
+    await new Promise(r => an.server.listen(0, '127.0.0.1', r));
+    const c3 = await new Promise(res => { const q = http.request({ host: '127.0.0.1', port: an.server.address().port, method: 'POST', path: '/api/autostart', headers: { 'X-Brisa': '1', 'Content-Type': 'application/json' } }, r => { r.resume(); res(r.statusCode); }); q.end('{"enabled":true}'); });
+    ok(c3 === 400, 'inicio con Windows: rechazado fuera del .exe');
+    await an.shutdown();
+  }
+
   // ---- backend LibreHardwareMonitor contra un servidor falso (formato supuesto, no verificado) ----
   const sets = [];
   const fake = http.createServer((req, res) => {
